@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from app.core.config import get_settings
+from app.models import Base  # noqa: F401 - ensure all models are registered
 
 settings = get_settings()
 

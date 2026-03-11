@@ -6,6 +6,7 @@ from app.api.v1.routes_health import router as health_router
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.db.session import engine
+from app.models import Base  # noqa: F401 - register models before create_all
 
 # Initialize logging FIRST, before any other imports that might log
 setup_logging()
@@ -17,19 +18,21 @@ logger = logging.getLogger(__name__)
 async def test_database_connectivity():
     """
     Test database connectivity on startup.
-    
-    This is an optional check to ensure the database is accessible
-    before the application starts serving requests.
+    Create tables if they do not exist (Option B: create_all for early development).
     """
     try:
         settings = get_settings()
         logger.info("Testing database connectivity...")
-        
-        # Test connection by executing a simple query
+
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
-        
         logger.info("Database connectivity test passed")
+
+        # Create tables if they do not exist (early development; use Alembic for production)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema up to date")
+
         logger.info(f"Database URL: {settings.get_database_url_masked()}")
     except Exception as e:
         logger.warning(
