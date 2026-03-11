@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 from app.api.v1.routes_health import router as health_router
+from app.api.v1.routes_auth import router as auth_router
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.db.session import engine
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(auth_router, prefix="/api/v1")
     
     logger.info("FastAPI application created successfully")
     logger.info(f"API documentation available at /docs")

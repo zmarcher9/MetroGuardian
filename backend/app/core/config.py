@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # JWT settings (optional, defaults provided)
     jwt_secret_key: str = Field(default="changeme", description="JWT secret key for token signing")
     jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
+    jwt_access_token_expire_minutes: int = Field(
+        default=30,
+        description="Access token expiration time in minutes",
+    )
+    jwt_secret_key_min_length: int = Field(default=32, description="Min length for JWT secret in production")
 
     model_config = SettingsConfigDict(
         env_file=str(_get_env_file_path()),
@@ -133,6 +138,13 @@ def get_settings() -> Settings:
     """
     try:
         settings = Settings()
+        # In production, refuse to run with default or weak JWT secret
+        if settings.app_env == "production":
+            if settings.jwt_secret_key == "changeme" or len(settings.jwt_secret_key) < settings.jwt_secret_key_min_length:
+                raise ValueError(
+                    f"JWT_SECRET_KEY must be set and at least {settings.jwt_secret_key_min_length} characters in production. "
+                    "Set JWT_SECRET_KEY in .env or environment."
+                )
         # Determine which database config method was used
         db_info = "DATABASE_URL" if settings.database_url_raw else "individual components"
         logger.info(

@@ -5,6 +5,9 @@ asyncpg
 psycopg2-binary
 pydantic
 pydantic-settings
+pydantic[email]
 python-dotenv
 httpx
+bcrypt
+python-jose[cryptography]
 
