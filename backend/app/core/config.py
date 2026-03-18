@@ -59,6 +59,30 @@ class Settings(BaseSettings):
     )
     jwt_secret_key_min_length: int = Field(default=32, description="Min length for JWT secret in production")
 
+    # Ingestion settings (Step 4)
+    ingestion_enabled: bool = Field(default=True, description="Enable background ingestion loops on startup")
+    ingestion_interval_seconds: int = Field(
+        default=30,
+        description="Seconds between ingestion runs (0 disables scheduling; manual trigger still works)",
+    )
+    traffic_simulated: bool = Field(default=True, description="Use simulated traffic data instead of a real API")
+    construction_feed_path: str | None = Field(
+        default=None,
+        description="Optional path to a construction feed file (JSON). If unset, uses built-in sample feed.",
+    )
+
+    # Hardening (Step 7)
+    cors_allow_origins: str = Field(
+        default="*",
+        description="Comma-separated origins for CORS, or * for all (dev only)",
+    )
+    cors_allow_credentials: bool = Field(default=True, description="CORS allow credentials")
+    cors_allow_methods: str = Field(default="*", description="CORS allow methods (comma-separated) or *")
+    cors_allow_headers: str = Field(default="*", description="CORS allow headers (comma-separated) or *")
+
+    rate_limit_requests: int = Field(default=120, description="Max requests per window per IP")
+    rate_limit_window_seconds: int = Field(default=60, description="Rate limit window size in seconds")
+
     model_config = SettingsConfigDict(
         env_file=str(_get_env_file_path()),
         env_file_encoding="utf-8",
