@@ -26,7 +26,7 @@ async def test_database_connectivity():
         async with engine.connect() as conn:
             result = await conn.execute(text("SELECT 1"))
             row = result.fetchone()
-            logger.info(f"Query result: {row[0]}")
+            logger.info(f"Query result: {row[0] if row is not None else None}")
         
         logger.info("Database connectivity test PASSED")
         logger.info(f"Database URL: {settings.get_database_url_masked()}")
