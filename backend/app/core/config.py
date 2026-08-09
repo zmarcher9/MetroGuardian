@@ -83,6 +83,20 @@ class Settings(BaseSettings):
     rate_limit_requests: int = Field(default=120, description="Max requests per window per IP")
     rate_limit_window_seconds: int = Field(default=60, description="Rate limit window size in seconds")
 
+    # Routing (OSRM)
+    osrm_base_url: str = Field(
+        default="https://router.project-osrm.org",
+        description="Base URL for an OSRM routing server (public demo or self-hosted)",
+    )
+    route_impact_radius_meters: float = Field(
+        default=250.0,
+        description="Max distance from a route line for an alert to count as impacting that route",
+    )
+    route_impact_lookback_minutes: int = Field(
+        default=45,
+        description="How far back to look for pipeline alerts when computing route impact",
+    )
+
     model_config = SettingsConfigDict(
         env_file=str(_get_env_file_path()),
         env_file_encoding="utf-8",

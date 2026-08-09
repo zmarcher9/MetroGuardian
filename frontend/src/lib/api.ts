@@ -79,3 +79,39 @@ export function alertsEventSource(): EventSource {
   return new EventSource(url)
 }
 
+export type LatLng = {
+  lat: number
+  lng: number
+}
+
+export type ImpactedAlert = {
+  id: string
+  type: string
+  message: string
+  severity: number
+  created_at: string
+  lat: number
+  lng: number
+  distance_meters: number
+}
+
+export type RouteOption = {
+  geometry: LatLng[]
+  distance_meters: number
+  duration_seconds: number
+  impact_score: number
+  impacted_alerts: ImpactedAlert[]
+}
+
+export type RouteCheckResponse = {
+  routes: RouteOption[]
+  recommended_index: number
+}
+
+export async function checkRoute(origin: LatLng, destination: LatLng) {
+  return http<RouteCheckResponse>(`/route/check`, {
+    method: 'POST',
+    body: JSON.stringify({ origin, destination }),
+  })
+}
+

@@ -10,4 +10,5 @@ python-dotenv
 httpx
 bcrypt
 python-jose[cryptography]
+truststore
 

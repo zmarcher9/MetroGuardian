@@ -8,8 +8,11 @@ import {
   listTrafficEvents,
   type ConstructionEvent,
   type PipelineAlert,
+  type RouteOption,
   type TrafficEvent,
 } from './lib/api'
+import MapView from './components/MapView'
+import RouteCheckPanel from './components/RouteCheckPanel'
 
 function alertTypeClass(type: string) {
   if (type === 'traffic') return 'text-amber-300'
@@ -24,6 +27,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [live, setLive] = useState(true)
+  const [routeOptions, setRouteOptions] = useState<RouteOption[]>([])
+  const [recommendedRouteIndex, setRecommendedRouteIndex] = useState(0)
 
   async function refresh() {
     setError(null)
@@ -197,6 +202,25 @@ function App() {
               )}
             </Panel>
           </div>
+        </div>
+
+        <div className="mt-6">
+          <Panel title="Live map & route check">
+            <div className="space-y-4">
+              <RouteCheckPanel
+                onResult={(routes, recommendedIndex) => {
+                  setRouteOptions(routes)
+                  setRecommendedRouteIndex(recommendedIndex)
+                }}
+              />
+              <MapView
+                trafficEvents={traffic}
+                constructionEvents={construction}
+                routes={routeOptions}
+                recommendedIndex={recommendedRouteIndex}
+              />
+            </div>
+          </Panel>
         </div>
       </main>
     </div>

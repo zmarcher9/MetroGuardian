@@ -3,6 +3,14 @@ import asyncio
 import socket
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
+
+import truststore
+
+# Use the OS certificate store for outbound TLS (e.g. OSRM calls) instead of certifi's
+# bundle, since some Windows environments have a corporate/AV root CA that only the
+# OS trust store knows about.
+truststore.inject_into_ssl()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -10,6 +18,7 @@ from app.api.v1.routes_health import router as health_router
 from app.api.v1.routes_auth import router as auth_router
 from app.api.v1.routes_pipeline import router as pipeline_router
 from app.api.v1.routes_realtime import router as realtime_router
+from app.api.v1.routes_route import router as route_router
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.core.middleware import SecurityHeadersMiddleware, SimpleRateLimitMiddleware
@@ -170,6 +179,7 @@ def create_app() -> FastAPI:
     # NOTE: include realtime before pipeline to avoid `/alerts/{id}` shadowing `/alerts/stream`
     app.include_router(realtime_router, prefix=API_V1_PREFIX)
     app.include_router(pipeline_router, prefix=API_V1_PREFIX)
+    app.include_router(route_router, prefix=API_V1_PREFIX)
     
     logger.info("FastAPI application created successfully")
     logger.info("API documentation available at /docs")
