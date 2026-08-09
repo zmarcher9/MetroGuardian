@@ -28,6 +28,12 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      # Never actually connected to in CI — the app only opens a DB connection
+      # inside the FastAPI startup lifespan, which a plain `import app.main`
+      # doesn't trigger. This just needs to be a syntactically valid URL so
+      # Settings.database_url doesn't raise at import time.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
