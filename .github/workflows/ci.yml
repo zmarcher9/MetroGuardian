@@ -21,6 +21,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
   backend:
@@ -44,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           source venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
           pip install pyright
       - name: Type check
         run: |
@@ -54,3 +55,10 @@ jobs:
         run: |
           source venv/bin/activate
           python -c "import app.main"
+      - name: Unit tests
+        run: |
+          source venv/bin/activate
+          # DATABASE_URL above is a placeholder, not a real Postgres instance, so
+          # db-marked tests auto-skip here (see backend/tests/conftest.py). Only
+          # a real DATABASE_URL (e.g. run locally against Supabase) exercises them.
+          pytest -v

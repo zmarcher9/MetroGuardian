@@ -6,6 +6,7 @@ import logging
 from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,19 +45,11 @@ def _is_newer(r: PipelineAlert, last_created_at, last_id) -> bool:
     return (r.created_at, str(r.id)) > (last_created_at, str(last_id))
 
 
-@router.get("/alerts/stream")
-async def stream_alerts(
+async def _alert_events(
     request: Request,
-    db: DbDep,
-    poll_seconds: Annotated[float, Query(ge=0.25, le=10.0)] = 1.0,
+    db: AsyncSession,
+    poll_seconds: float,
 ) -> AsyncGenerator[str, None]:
-    """
-    Server-Sent Events endpoint for real-time alert updates.
-
-    Client example:
-      const es = new EventSource("/api/v1/alerts/stream");
-      es.addEventListener("alert", (e) => console.log(JSON.parse(e.data)));
-    """
     # Send a hello event so client knows it's connected.
     yield _sse({"status": "connected"}, event="hello")
 
@@ -84,4 +77,28 @@ async def stream_alerts(
                 last_created_at = newest.created_at
 
         await asyncio.sleep(poll_seconds)
+
+
+@router.get("/alerts/stream")
+async def stream_alerts(
+    request: Request,
+    db: DbDep,
+    poll_seconds: Annotated[float, Query(ge=0.25, le=10.0)] = 1.0,
+) -> StreamingResponse:
+    """
+    Server-Sent Events endpoint for real-time alert updates.
+
+    Client example:
+      const es = new EventSource("/api/v1/alerts/stream");
+      es.addEventListener("alert", (e) => console.log(JSON.parse(e.data)));
+
+    Wrapped in an explicit StreamingResponse (rather than returning the
+    generator directly) so this is served as real `text/event-stream`, not
+    FastAPI's default JSON-Lines auto-streaming for generator-returning routes.
+    """
+    return StreamingResponse(
+        _alert_events(request, db, poll_seconds),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
