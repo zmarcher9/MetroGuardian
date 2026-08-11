@@ -133,3 +133,9 @@ metroguardian/
 - [ ] v1.2: User saved routes, alert history, Google/Apple Maps deep links
 - [ ] v2: Authentication-gated features (signup/login already work as an API, no UI yet) + notifications
 - [ ] v2+: Analytics dashboard, trend heatmaps, and a real (non-simulated) traffic data source
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
