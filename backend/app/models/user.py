@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
@@ -35,7 +35,3 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)  # null if using Supabase auth
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now, onupdate=_utc_now, nullable=False)
-
-    # Relationships
-    saved_routes = relationship("SavedRoute", back_populates="user", cascade="all, delete-orphan")
-    alerts = relationship("Alert", back_populates="user", cascade="all, delete-orphan")

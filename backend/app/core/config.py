@@ -183,6 +183,13 @@ def get_settings() -> Settings:
                     f"JWT_SECRET_KEY must be set and at least {settings.jwt_secret_key_min_length} characters in production. "
                     "Set JWT_SECRET_KEY in .env or environment."
                 )
+            # Wildcard CORS origin combined with allow_credentials is both insecure and
+            # rejected by browsers for credentialed requests - require explicit origins.
+            if settings.cors_allow_origins.strip() == "*" and settings.cors_allow_credentials:
+                raise ValueError(
+                    "CORS_ALLOW_ORIGINS must not be '*' when CORS_ALLOW_CREDENTIALS is true in production. "
+                    "Set CORS_ALLOW_ORIGINS to a comma-separated list of explicit origins."
+                )
         # Determine which database config method was used
         db_info = "DATABASE_URL" if settings.database_url_raw else "individual components"
         logger.info(
