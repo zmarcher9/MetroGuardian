@@ -32,8 +32,9 @@ Not yet built (see Roadmap): user-defined saved routes, delay-minutes estimates,
 
 **Infrastructure**
 - PostgreSQL (Supabase)
-- Backend hosting: Railway / Render
-- Frontend hosting: Vercel
+- Backend hosting: Railway
+- Frontend hosting: Cloudflare Pages
+- Domain: Porkbun (registrar) + Cloudflare (DNS)
 - Routing: OSRM API (defaults to the public demo instance)
 
 ---
@@ -131,8 +132,17 @@ metroguardian/
 - [x] v1: Incident detection + construction ingestion + basic map
 - [x] v1.1: Route checking and alternate route suggestions
 - [ ] v1.2: User saved routes, alert history, Google/Apple Maps deep links
-- [ ] v2: Authentication-gated features (signup/login already work as an API, no UI yet) + notifications
+- [ ] v2: Authentication-gated features (cookie-based auth, refresh-token rotation, and an admin
+      role are implemented on the backend; no frontend UI yet) + notifications + two-factor
+      authentication (2FA) - not started, planned for sometime after the frontend auth UI ships
 - [ ] v2+: Analytics dashboard, trend heatmaps, and a real (non-simulated) traffic data source
+- [ ] Hardening (no urgency): the login/signup rate limiter (`backend/app/core/rate_limit.py`) is
+      an in-memory, single-instance, fixed-window IP+email limiter - it stops single-IP brute
+      force but not a distributed/IP-rotating attacker targeting one account. Potential future
+      upgrade: an additional per-email-only limiter (catches the distributed case) and/or
+      switching to a sliding-window or token-bucket algorithm (avoids the fixed-window boundary-
+      burst edge case, where a client can get ~2x the intended attempts right at a window
+      rollover)
 
 ---
 

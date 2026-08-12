@@ -21,11 +21,13 @@ from app.api.v1.routes_realtime import router as realtime_router
 from app.api.v1.routes_route import router as route_router
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
-from app.core.middleware import SecurityHeadersMiddleware, SimpleRateLimitMiddleware
+from app.core.middleware import CSRFMiddleware, SecurityHeadersMiddleware, SimpleRateLimitMiddleware
 from app.db.session import engine
 from app.models import Base  # noqa: F401 - register models before create_all
 from app.db.session import AsyncSessionLocal
 from app.services.ingestion import ingest_construction, ingest_traffic
+from app.services.ingestion_cleanup import cleanup_old_ingestion_data
+from app.services.token_cleanup import cleanup_expired_refresh_tokens
 
 # Initialize logging FIRST, before any other imports that might log
 setup_logging()
@@ -116,14 +118,58 @@ async def lifespan(app: FastAPI):
 
     if db_ok and settings.ingestion_enabled and int(settings.ingestion_interval_seconds) > 0:
         task = asyncio.create_task(_loop())
-    
+
+    cleanup_stop_event = asyncio.Event()
+    cleanup_task: asyncio.Task | None = None
+
+    async def _maintenance_loop():
+        """Periodic DB cleanup: expired refresh tokens + aged-out ingestion data (see
+        app/services/token_cleanup.py and app/services/ingestion_cleanup.py for why)."""
+        interval_seconds = max(0, int(settings.maintenance_cleanup_interval_hours)) * 3600
+        if interval_seconds <= 0:
+            return
+        logger.info("Background maintenance loop started", extra={"interval_hours": settings.maintenance_cleanup_interval_hours})
+        while not cleanup_stop_event.is_set():
+            try:
+                async with AsyncSessionLocal() as db:
+                    tokens_deleted = await cleanup_expired_refresh_tokens(db)
+                if tokens_deleted:
+                    logger.info("Maintenance: removed old refresh tokens", extra={"deleted": tokens_deleted})
+
+                async with AsyncSessionLocal() as db:
+                    result = await cleanup_old_ingestion_data(db)
+                if result.traffic_events_deleted or result.construction_events_deleted or result.pipeline_alerts_deleted:
+                    logger.info(
+                        "Maintenance: removed old ingestion data",
+                        extra={
+                            "traffic_events_deleted": result.traffic_events_deleted,
+                            "construction_events_deleted": result.construction_events_deleted,
+                            "pipeline_alerts_deleted": result.pipeline_alerts_deleted,
+                        },
+                    )
+            except Exception as e:
+                logger.exception("Background maintenance loop error", extra={"error": str(e)})
+            try:
+                await asyncio.wait_for(cleanup_stop_event.wait(), timeout=interval_seconds)
+            except asyncio.TimeoutError:
+                continue
+
+    if db_ok and int(settings.maintenance_cleanup_interval_hours) > 0:
+        cleanup_task = asyncio.create_task(_maintenance_loop())
+
     yield
-    
+
     # Shutdown
     stop_event.set()
     if task is not None:
         try:
             await task
+        except Exception:
+            pass
+    cleanup_stop_event.set()
+    if cleanup_task is not None:
+        try:
+            await cleanup_task
         except Exception:
             pass
     logger.info("Application shutdown: Closing database connections...")
@@ -152,6 +198,7 @@ def create_app() -> FastAPI:
     # Step 7: security headers + basic rate limit
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(SimpleRateLimitMiddleware)
+    app.add_middleware(CSRFMiddleware)
 
     # Step 7: CORS (add last)
     origins = [o.strip() for o in settings.cors_allow_origins.split(",")] if settings.cors_allow_origins else ["*"]

@@ -1,6 +1,7 @@
 import logging
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -54,10 +55,21 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(default="changeme", description="JWT secret key for token signing")
     jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
     jwt_access_token_expire_minutes: int = Field(
-        default=30,
+        default=15,
         description="Access token expiration time in minutes",
     )
     jwt_secret_key_min_length: int = Field(default=32, description="Min length for JWT secret in production")
+
+    # Cookie-based auth settings
+    access_token_cookie_name: str = Field(default="mg_at", description="Cookie name for the access token JWT")
+    refresh_token_cookie_name: str = Field(default="mg_rt", description="Cookie name for the opaque refresh token")
+    csrf_cookie_name: str = Field(default="mg_csrf", description="Cookie name for the CSRF double-submit token")
+    csrf_header_name: str = Field(default="X-CSRF-Token", description="Header name clients must echo the CSRF cookie in")
+    refresh_token_expire_days: int = Field(default=30, description="Refresh token expiration time in days")
+    cookie_secure: bool = Field(default=True, description="Set the Secure attribute on auth cookies")
+    cookie_samesite: Literal["lax", "strict", "none"] = Field(
+        default="lax", description="SameSite attribute for auth cookies"
+    )
 
     # Ingestion settings (Step 4)
     ingestion_enabled: bool = Field(default=True, description="Enable background ingestion loops on startup")
@@ -82,6 +94,33 @@ class Settings(BaseSettings):
 
     rate_limit_requests: int = Field(default=120, description="Max requests per window per IP")
     rate_limit_window_seconds: int = Field(default=60, description="Rate limit window size in seconds")
+
+    # Stricter, auth-specific rate limits on top of the general one above -
+    # 120 req/min is fine for general API use but far too permissive to slow
+    # down credential-stuffing/brute-force login or mass fake-account signup.
+    rate_limit_login_attempts: int = Field(default=5, description="Max login attempts per window per IP+email")
+    rate_limit_login_window_seconds: int = Field(default=900, description="Login rate limit window (default 15 min)")
+    rate_limit_signup_attempts: int = Field(default=5, description="Max signups per window per IP")
+    rate_limit_signup_window_seconds: int = Field(default=3600, description="Signup rate limit window (default 1 hour)")
+
+    # Background maintenance (refresh-token + ingestion-data cleanup share one loop/interval)
+    maintenance_cleanup_interval_hours: int = Field(
+        default=24, description="How often the background cleanup job runs (0 disables it)"
+    )
+    refresh_token_cleanup_grace_days: int = Field(
+        default=7,
+        description="Delete refresh_token rows this many days past expiry/revocation "
+        "(kept briefly for incident forensics, not indefinitely)",
+    )
+    # TrafficEvent/ConstructionEvent are raw ingestion inputs with no read path
+    # that ever looks back further than a few minutes (the anomaly-detection
+    # window) or a page of "most recent N" results - short retention is safe.
+    traffic_event_retention_days: int = Field(default=3, description="Delete TrafficEvent rows older than this")
+    construction_event_retention_days: int = Field(
+        default=3, description="Delete ConstructionEvent rows older than this"
+    )
+    # PipelineAlert is user-facing "alert history" (v1.2 roadmap) - keep much longer.
+    pipeline_alert_retention_days: int = Field(default=90, description="Delete PipelineAlert rows older than this")
 
     # Routing (OSRM)
     osrm_base_url: str = Field(
@@ -189,6 +228,11 @@ def get_settings() -> Settings:
                 raise ValueError(
                     "CORS_ALLOW_ORIGINS must not be '*' when CORS_ALLOW_CREDENTIALS is true in production. "
                     "Set CORS_ALLOW_ORIGINS to a comma-separated list of explicit origins."
+                )
+            # Auth cookies must never be sent over plaintext HTTP in production.
+            if not settings.cookie_secure:
+                raise ValueError(
+                    "COOKIE_SECURE must be true in production. Auth cookies must not be sent over plain HTTP."
                 )
         # Determine which database config method was used
         db_info = "DATABASE_URL" if settings.database_url_raw else "individual components"

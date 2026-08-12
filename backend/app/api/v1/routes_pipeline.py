@@ -6,10 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import get_current_admin_user
 from app.db.session import get_db
 from app.models.construction_event import ConstructionEvent
 from app.models.pipeline_alert import PipelineAlert
 from app.models.traffic_event import TrafficEvent
+from app.models.user import User
 from app.schemas.pipeline import (
     ConstructionEventResponse,
     IngestionRunResponse,
@@ -23,16 +25,24 @@ logger = logging.getLogger(__name__)
 
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
+AdminDep = Annotated[User, Depends(get_current_admin_user)]
+
+
+# Ingestion also runs automatically on a schedule (see the background loop in
+# app/main.py's lifespan) - these are for manually triggering an out-of-cycle
+# run, which is an admin/operator action, not something any authenticated
+# user (let alone an anonymous caller, which is all this required before)
+# should be able to do.
 
 
 @router.post("/ingest/traffic")
-async def run_traffic_ingestion(db: DbDep) -> IngestionRunResponse:
+async def run_traffic_ingestion(db: DbDep, _admin: AdminDep) -> IngestionRunResponse:
     result = await ingest_traffic(db)
     return IngestionRunResponse(inserted_events=result.inserted_events, generated_alerts=result.generated_alerts)
 
 
 @router.post("/ingest/construction")
-async def run_construction_ingestion(db: DbDep) -> IngestionRunResponse:
+async def run_construction_ingestion(db: DbDep, _admin: AdminDep) -> IngestionRunResponse:
     result = await ingest_construction(db)
     return IngestionRunResponse(inserted_events=result.inserted_events, generated_alerts=result.generated_alerts)
 

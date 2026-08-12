@@ -21,7 +21,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
+from app.core.rate_limit import reset_rate_limits
 from app.models import Base
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    """
+    The auth rate limiter (app/core/rate_limit.py) is deliberately strict
+    (e.g. 5 signups/hour per IP) and its state is process-global, not
+    per-test - without this, tests would trip each other's limits since the
+    test transport always reports the same fake client IP.
+    """
+    reset_rate_limits()
 
 
 @pytest.fixture(scope="session")
@@ -88,7 +100,12 @@ async def plain_client() -> AsyncIterator[AsyncClient]:
     from app.main import app
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+    # https:// (not http://) even though ASGITransport makes no real network
+    # call and the scheme is otherwise symbolic - httpx's cookie jar enforces
+    # the Secure cookie attribute the same way a real browser does, and
+    # auth cookies are Secure by default, so a plain http:// base_url would
+    # silently refuse to resend them on the next request in a test.
+    async with AsyncClient(transport=transport, base_url="https://testserver") as ac:
         yield ac
 
 
@@ -105,7 +122,18 @@ async def client(db_session: AsyncSession) -> AsyncIterator[AsyncClient]:
     app.dependency_overrides[get_db] = _override_get_db
     try:
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
+        # https:// - see the comment in plain_client() above.
+        async with AsyncClient(transport=transport, base_url="https://testserver") as ac:
             yield ac
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+def csrf_headers(client: AsyncClient) -> dict[str, str]:
+    """
+    The X-CSRF-Token header a mutating request needs, echoing whatever value
+    CSRFMiddleware has already minted into the client's cookie jar (from any
+    prior request - GET or a previously-rejected mutating one both mint it).
+    """
+    settings = get_settings()
+    return {settings.csrf_header_name: client.cookies.get(settings.csrf_cookie_name) or ""}

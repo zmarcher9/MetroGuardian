@@ -26,15 +26,35 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class RefreshRequest(BaseModel):
+    """
+    Body for mobile/native clients on POST /auth/refresh and /auth/logout.
+    Web clients send neither - their refresh token lives only in the
+    (cookie-jar-managed) mg_rt cookie.
+    """
+
+    refresh_token: str | None = None
 
 
 class UserResponse(BaseModel):
     id: UUID
     email: str
+    is_admin: bool
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    """
+    Returned only to mobile/native clients (X-Client-Type: mobile). Web
+    clients get tokens exclusively via httpOnly cookies, never in the body -
+    putting a token here too would make it readable by any XSS on the page,
+    defeating the point of httpOnly.
+    """
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserResponse

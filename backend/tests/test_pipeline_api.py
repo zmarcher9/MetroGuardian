@@ -3,13 +3,33 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.construction_event import ConstructionEvent
 from app.models.pipeline_alert import PipelineAlert
 from app.models.traffic_event import TrafficEvent
+from app.models.user import User
+from tests.conftest import csrf_headers
 
 pytestmark = pytest.mark.db
+
+
+async def _signup_as_admin(client: AsyncClient, db_session: AsyncSession, email: str) -> None:
+    """
+    Signs up (and cookie-authenticates) a user, then promotes them to admin
+    directly via the DB - there's no HTTP path to do this, by design.
+    """
+    await client.get("/api/v1/health")  # mints the CSRF cookie
+    resp = await client.post(
+        "/api/v1/auth/signup",
+        json={"email": email, "password": "password1"},
+        headers=csrf_headers(client),
+    )
+    assert resp.status_code == 200
+    user = (await db_session.execute(select(User).where(User.email == email))).scalar_one()
+    user.is_admin = True
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
@@ -89,8 +109,28 @@ async def test_list_construction_events_returns_seeded_event(client: AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_ingest_traffic_endpoint_inserts_events(client: AsyncClient):
-    resp = await client.post("/api/v1/ingest/traffic")
+async def test_ingest_traffic_requires_admin(client: AsyncClient):
+    await client.get("/api/v1/health")  # mints the CSRF cookie
+    resp = await client.post("/api/v1/ingest/traffic", headers=csrf_headers(client))
+    assert resp.status_code == 401  # unauthenticated
+
+
+@pytest.mark.asyncio
+async def test_ingest_traffic_rejects_non_admin_user(client: AsyncClient):
+    await client.get("/api/v1/health")  # mints the CSRF cookie
+    await client.post(
+        "/api/v1/auth/signup",
+        json={"email": "non-admin@example.com", "password": "password1"},
+        headers=csrf_headers(client),
+    )
+    resp = await client.post("/api/v1/ingest/traffic", headers=csrf_headers(client))
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_ingest_traffic_endpoint_inserts_events(client: AsyncClient, db_session: AsyncSession):
+    await _signup_as_admin(client, db_session, "traffic-admin@example.com")
+    resp = await client.post("/api/v1/ingest/traffic", headers=csrf_headers(client))
     assert resp.status_code == 200
     body = resp.json()
     assert body["inserted_events"] == 3
@@ -98,8 +138,9 @@ async def test_ingest_traffic_endpoint_inserts_events(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_ingest_construction_endpoint_inserts_events(client: AsyncClient):
-    resp = await client.post("/api/v1/ingest/construction")
+async def test_ingest_construction_endpoint_inserts_events(client: AsyncClient, db_session: AsyncSession):
+    await _signup_as_admin(client, db_session, "construction-admin@example.com")
+    resp = await client.post("/api/v1/ingest/construction", headers=csrf_headers(client))
     assert resp.status_code == 200
     body = resp.json()
     assert body["inserted_events"] >= 1

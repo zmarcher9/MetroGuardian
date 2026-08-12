@@ -1,9 +1,15 @@
 """
-Password hashing and JWT token handling.
+Password hashing, JWT access tokens, and opaque refresh tokens.
 
 - Passwords are hashed with bcrypt; never log or return plain passwords.
 - JWT subject (sub) is the user's ID (str) for get_current_user lookup.
+- Refresh tokens are high-entropy random strings; only their sha256 hash is
+  ever stored, never the raw value (same principle as password hashing, but
+  sha256 is sufficient here since the input already has 256 bits of entropy
+  and isn't a low-entropy secret an attacker could guess/brute-force).
 """
+import hashlib
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -33,7 +39,12 @@ def create_access_token(subject: str | Any, expires_delta: timedelta | None = No
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.jwt_access_token_expire_minutes)
     expire = now + expires_delta
-    to_encode = {"sub": str(subject), "exp": expire, "iat": now}
+    # jti: guarantees uniqueness even for two tokens issued to the same
+    # subject within the same second (iat/exp truncate to whole seconds,
+    # so without this, back-to-back issuance - e.g. signup immediately
+    # followed by a refresh - can otherwise produce byte-for-byte identical
+    # tokens).
+    to_encode = {"sub": str(subject), "exp": expire, "iat": now, "jti": secrets.token_urlsafe(16)}
     return jwt.encode(
         to_encode,
         settings.jwt_secret_key,
@@ -55,3 +66,13 @@ def decode_access_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
+
+
+def generate_refresh_token() -> str:
+    """Generate a high-entropy opaque refresh token. Only its hash is stored."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh_token(raw_token: str) -> str:
+    """Hash a raw refresh token for storage/lookup. Never store the raw value."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
