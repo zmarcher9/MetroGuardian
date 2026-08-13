@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 import httpx
+from cachetools import TTLCache
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,32 @@ from app.schemas.routing import ImpactedAlertResponse, LatLng, RouteOptionRespon
 logger = logging.getLogger(__name__)
 
 _EARTH_RADIUS_M = 6_371_000.0
+
+# Caches get_routes()'s result (road-network geometry/distance/duration only -
+# never compute_impact()'s live alert scoring, which must stay fresh on every
+# call). A single module-level instance, mirroring the module-level dicts in
+# app/core/rate_limit.py: built once from settings, mutated in place
+# thereafter (never reassigned), so no `global` is needed anywhere in this
+# file. Tests that need a different ttl/maxsize than the configured default
+# monkeypatch this object directly (`monkeypatch.setattr(routing_service,
+# "_osrm_cache", TTLCache(...))`) rather than going through settings.
+_osrm_cache: TTLCache = TTLCache(
+    maxsize=get_settings().osrm_cache_max_entries, ttl=get_settings().osrm_cache_ttl_seconds
+)
+
+
+def _clear_osrm_cache() -> None:
+    """Test-only: drop all cached OSRM route lookups."""
+    _osrm_cache.clear()
+
+
+def _osrm_cache_key(origin: LatLng, destination: LatLng) -> tuple[float, float, float, float]:
+    # ~11m precision. OSRM snaps input coordinates to the nearest road
+    # segment before routing, so two origins this close together
+    # overwhelmingly resolve to the same route - this is a "close enough,
+    # road-snapped" cache key by design, not a guarantee of literal input
+    # coordinates.
+    return (round(origin.lat, 4), round(origin.lng, 4), round(destination.lat, 4), round(destination.lng, 4))
 
 
 class RoutingError(Exception):
@@ -82,7 +109,20 @@ def _min_distance_to_route_m(point: LatLng, route_geometry: list[LatLng]) -> flo
 async def get_routes(client: httpx.AsyncClient, origin: LatLng, destination: LatLng) -> list[OsrmRoute]:
     """
     Fetch driving routes (with alternatives, if OSRM offers any) between origin and destination.
+
+    Successful results are cached in-process for settings.osrm_cache_ttl_seconds
+    (see _osrm_cache) - the public OSRM demo server has no SLA and enforces
+    usage limits, and repeated checks of the same trip don't need a fresh
+    lookup every time. Errors are never cached.
     """
+    key = _osrm_cache_key(origin, destination)
+    cached = _osrm_cache.get(key)
+    if cached is not None:
+        # A shallow copy: the cached list is shared across every caller with
+        # this key, so returning it directly would let one caller's in-place
+        # mutation of the list corrupt what every other caller sees.
+        return list(cached)
+
     settings = get_settings()
     coords = f"{origin.lng},{origin.lat};{destination.lng},{destination.lat}"
     url = f"{settings.osrm_base_url}/route/v1/driving/{coords}"
@@ -111,6 +151,7 @@ async def get_routes(client: httpx.AsyncClient, origin: LatLng, destination: Lat
                 duration_seconds=float(r["duration"]),
             )
         )
+    _osrm_cache[key] = routes
     return routes
 
 

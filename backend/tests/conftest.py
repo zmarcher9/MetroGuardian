@@ -23,6 +23,7 @@ from sqlalchemy.pool import NullPool
 from app.core.config import get_settings
 from app.core.rate_limit import reset_rate_limits
 from app.models import Base
+from app.services.routing_service import _clear_osrm_cache
 
 
 @pytest.fixture(autouse=True)
@@ -34,6 +35,19 @@ def _reset_rate_limits() -> None:
     test transport always reports the same fake client IP.
     """
     reset_rate_limits()
+
+
+@pytest.fixture(autouse=True)
+def _reset_osrm_cache() -> None:
+    """
+    The OSRM route cache (app/services/routing_service.py) is process-global,
+    not per-test. Several existing tests reuse the same origin/destination
+    constants (see test_routing_service.py's ORIGIN/DESTINATION) expecting
+    each call to actually hit the mocked transport - without this reset,
+    whichever test populates the cache first would silently serve a stale
+    result to every test that runs after it.
+    """
+    _clear_osrm_cache()
 
 
 @pytest.fixture(scope="session")

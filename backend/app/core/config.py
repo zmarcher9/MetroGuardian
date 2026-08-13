@@ -142,6 +142,13 @@ class Settings(BaseSettings):
         default=45,
         description="How far back to look for pipeline alerts when computing route impact",
     )
+    osrm_cache_ttl_seconds: int = Field(
+        default=300, description="How long a cached OSRM route lookup stays valid"
+    )
+    osrm_cache_max_entries: int = Field(
+        default=500,
+        description="Max distinct origin/destination pairs held in the OSRM cache (cachetools.TTLCache, LRU eviction on overflow)",
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_get_env_file_path()),

@@ -7,6 +7,7 @@ pydantic-settings
 pydantic[email]
 python-dotenv
 httpx
+cachetools
 bcrypt
 python-jose[cryptography]
 truststore
