@@ -71,6 +71,13 @@ class Settings(BaseSettings):
         default="lax", description="SameSite attribute for auth cookies"
     )
 
+    # Saved routes (v1.2)
+    saved_routes_max_per_user: int = Field(
+        default=50,
+        description="Max saved routes a single user may hold - backstop against unbounded row "
+        "creation, independent of the (per-IP, not per-user) general rate limiter",
+    )
+
     # Ingestion settings (Step 4)
     ingestion_enabled: bool = Field(default=True, description="Enable background ingestion loops on startup")
     ingestion_interval_seconds: int = Field(

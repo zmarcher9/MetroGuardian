@@ -19,6 +19,7 @@ from app.api.v1.routes_auth import router as auth_router
 from app.api.v1.routes_pipeline import router as pipeline_router
 from app.api.v1.routes_realtime import router as realtime_router
 from app.api.v1.routes_route import router as route_router
+from app.api.v1.routes_saved_routes import router as saved_routes_router
 from app.core.logging_config import setup_logging
 from app.core.config import get_settings
 from app.core.middleware import CSRFMiddleware, SecurityHeadersMiddleware, SimpleRateLimitMiddleware
@@ -227,7 +228,8 @@ def create_app() -> FastAPI:
     app.include_router(realtime_router, prefix=API_V1_PREFIX)
     app.include_router(pipeline_router, prefix=API_V1_PREFIX)
     app.include_router(route_router, prefix=API_V1_PREFIX)
-    
+    app.include_router(saved_routes_router, prefix=API_V1_PREFIX)
+
     logger.info("FastAPI application created successfully")
     logger.info("API documentation available at /docs")
 

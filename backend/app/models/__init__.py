@@ -9,6 +9,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.traffic_event import TrafficEvent
 from app.models.construction_event import ConstructionEvent
 from app.models.pipeline_alert import PipelineAlert
+from app.models.saved_route import SavedRoute
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "TrafficEvent",
     "ConstructionEvent",
     "PipelineAlert",
+    "SavedRoute",
 ]
