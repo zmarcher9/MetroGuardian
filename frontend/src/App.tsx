@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
+import { Construction, Database, Gauge, LogIn, LogOut, Radio, RadioOff, RefreshCw, UserPlus } from 'lucide-react'
 import {
   alertsEventSource,
   ingestConstruction,
@@ -20,11 +21,28 @@ import RouteCheckPanel from './components/RouteCheckPanel'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import SavedRoutesPage from './pages/SavedRoutesPage'
+import { Button } from './components/ui/Button'
+import { buttonClasses } from './components/ui/buttonClasses'
+import { Card, CardHeader, CardTitle } from './components/ui/Card'
+import { IconBadge } from './components/ui/IconBadge'
+import { Led, type LedStatus } from './components/ui/Led'
 
-function alertTypeClass(type: string) {
-  if (type === 'traffic') return 'text-amber-300'
-  if (type === 'construction') return 'text-sky-300'
-  return 'text-slate-200'
+function AlertTypeBadge({ type }: Readonly<{ type: string }>) {
+  if (type === 'traffic') {
+    return (
+      <IconBadge icon={Gauge} tone="warning">
+        Traffic
+      </IconBadge>
+    )
+  }
+  if (type === 'construction') {
+    return (
+      <IconBadge icon={Construction} tone="info">
+        Construction
+      </IconBadge>
+    )
+  }
+  return <IconBadge tone="neutral">{type}</IconBadge>
 }
 
 function App() {
@@ -54,41 +72,41 @@ function NavHeader() {
   const { user, logout } = useAuth()
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-        <div className="flex items-center gap-6">
+    <header className="border-b border-border-light bg-[var(--foreground-translucent)] backdrop-blur">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div>
-            <div className="text-sm text-slate-400">MetroGuardian</div>
-            <div className="text-lg font-semibold tracking-tight">Alert Dashboard</div>
+            <div className="text-xs uppercase tracking-widest text-text-muted">MetroGuardian</div>
+            <div className="text-emboss text-lg font-bold tracking-tight text-text">Alert Dashboard</div>
           </div>
-          <nav className="flex items-center gap-4 text-sm text-slate-300">
-            <Link to="/" className="hover:text-slate-100">
+          <nav className="flex items-center gap-4 text-sm font-medium text-text-muted">
+            <Link to="/" className="transition-colors hover:text-text">
               Dashboard
             </Link>
             {user ? (
-              <Link to="/saved-routes" className="hover:text-slate-100">
+              <Link to="/saved-routes" className="transition-colors hover:text-text">
                 Saved routes
               </Link>
             ) : null}
           </nav>
         </div>
-        <div className="flex items-center gap-3 text-sm text-slate-300">
+        <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="text-slate-400">{user.email}</span>
-              <button
-                onClick={() => void logout()}
-                className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800"
-              >
+              <span className="hidden text-sm text-text-muted sm:inline">{user.email}</span>
+              <Button variant="secondary" size="sm" onClick={() => void logout()}>
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
                 Log out
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <Link to="/login" className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800">
+              <Link to="/login" className={buttonClasses('secondary', 'sm')}>
+                <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
                 Log in
               </Link>
-              <Link to="/signup" className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800">
+              <Link to="/signup" className={buttonClasses('primary', 'sm')}>
+                <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                 Sign up
               </Link>
             </>
@@ -106,6 +124,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [live, setLive] = useState(true)
+  const [connectionStatus, setConnectionStatus] = useState<LedStatus>('offline')
   const [routeOptions, setRouteOptions] = useState<RouteOption[]>([])
   const [recommendedRouteIndex, setRecommendedRouteIndex] = useState(0)
 
@@ -129,7 +148,11 @@ function Dashboard() {
   }, [])
 
   useEffect(() => {
-    if (!live) return
+    if (!live) {
+      setConnectionStatus('offline')
+      return
+    }
+    setConnectionStatus('connecting')
     const es = alertsEventSource()
     const onAlert = (ev: MessageEvent) => {
       try {
@@ -139,10 +162,17 @@ function Dashboard() {
         // ignore
       }
     }
+    const onOpen = () => setConnectionStatus('online')
+    const onError = () => setConnectionStatus('error')
     es.addEventListener('alert', onAlert as EventListener)
+    es.addEventListener('open', onOpen)
+    es.addEventListener('error', onError)
     return () => {
       es.removeEventListener('alert', onAlert as EventListener)
+      es.removeEventListener('open', onOpen)
+      es.removeEventListener('error', onError)
       es.close()
+      setConnectionStatus('offline')
     }
   }, [live])
 
@@ -156,23 +186,23 @@ function Dashboard() {
   )
 
   const alertsBody = useMemo(() => {
-    if (loading) return <div className="text-sm text-slate-400">Loading…</div>
-    if (alerts.length === 0) return <div className="text-sm text-slate-400">No alerts yet.</div>
+    if (loading) return <div className="text-sm text-text-muted">Loading…</div>
+    if (alerts.length === 0) return <div className="text-sm text-text-muted">No alerts yet.</div>
     return (
-      <ul className="divide-y divide-slate-800">
+      <ul className="divide-y divide-border-light">
         {alerts.slice(0, 20).map((a) => (
           <li key={a.id} className="py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium">
-                  <span className={alertTypeClass(a.type)}>{a.type.toUpperCase()}</span>{' '}
-                  <span className="text-slate-200">{a.message}</span>
+                <div className="mb-1">
+                  <AlertTypeBadge type={a.type} />
                 </div>
-                <div className="mt-1 text-xs text-slate-500">{new Date(a.created_at).toLocaleString()}</div>
+                <div className="text-sm text-text">{a.message}</div>
+                <div className="mt-1 text-xs text-text-muted">{new Date(a.created_at).toLocaleString()}</div>
               </div>
-              <div className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200">
+              <IconBadge tone="neutral" className="shrink-0">
                 Sev {a.severity}
-              </div>
+              </IconBadge>
             </div>
           </li>
         ))}
@@ -182,40 +212,37 @@ function Dashboard() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6 flex items-center gap-2">
-        <button
-          onClick={() => void refresh()}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-        >
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={() => void refresh()}>
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Refresh
-        </button>
-        <button
-          onClick={() => void ingestTraffic().then(refresh)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => void ingestTraffic().then(refresh)}>
+          <Database className="h-3.5 w-3.5" aria-hidden="true" />
           Ingest traffic
-        </button>
-        <button
-          onClick={() => void ingestConstruction().then(refresh)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-        >
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => void ingestConstruction().then(refresh)}>
+          <Construction className="h-3.5 w-3.5" aria-hidden="true" />
           Ingest construction
-        </button>
-        <label className="ml-2 flex items-center gap-2 text-sm text-slate-300">
-          <input
-            type="checkbox"
-            checked={live}
-            onChange={(e) => setLive(e.target.checked)}
-            className="h-4 w-4 rounded border-slate-700 bg-slate-900"
-          />
-          <span>Live</span>
-        </label>
+        </Button>
+        <Button
+          variant={live ? 'primary' : 'secondary'}
+          size="sm"
+          onClick={() => setLive((v) => !v)}
+          aria-pressed={live}
+        >
+          {live ? (
+            <Radio className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <RadioOff className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Live
+        </Button>
+        <Led status={connectionStatus} />
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">
-          {error}
-        </div>
+        <div className="mb-4 rounded-lg border border-accent bg-[var(--accent-tint)] p-3 text-sm text-text">{error}</div>
       ) : null}
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -225,57 +252,69 @@ function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Panel title="Latest alerts">
+        <Card>
+          <CardHeader>
+            <CardTitle>Latest alerts</CardTitle>
+          </CardHeader>
           {alertsBody}
-        </Panel>
+        </Card>
 
         <div className="grid grid-cols-1 gap-6">
-          <Panel title="Traffic events">
+          <Card>
+            <CardHeader>
+              <CardTitle>Traffic events</CardTitle>
+            </CardHeader>
             {loading ? (
-              <div className="text-sm text-slate-400">Loading…</div>
+              <div className="text-sm text-text-muted">Loading…</div>
             ) : (
-              <ul className="divide-y divide-slate-800">
+              <ul className="divide-y divide-border-light">
                 {traffic.slice(0, 10).map((e) => (
                   <li key={e.id} className="py-2 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-slate-200">{e.road_name}</div>
-                        <div className="text-xs text-slate-500">{new Date(e.observed_at).toLocaleTimeString()}</div>
+                        <div className="truncate text-text">{e.road_name}</div>
+                        <div className="text-xs text-text-muted">{new Date(e.observed_at).toLocaleTimeString()}</div>
                       </div>
-                      <div className="shrink-0 font-mono text-slate-200">{e.speed_kph.toFixed(1)} kph</div>
+                      <div className="shrink-0 font-mono text-text">{e.speed_kph.toFixed(1)} kph</div>
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </Panel>
+          </Card>
 
-          <Panel title="Construction events">
+          <Card>
+            <CardHeader>
+              <CardTitle>Construction events</CardTitle>
+            </CardHeader>
             {loading ? (
-              <div className="text-sm text-slate-400">Loading…</div>
+              <div className="text-sm text-text-muted">Loading…</div>
             ) : (
-              <ul className="divide-y divide-slate-800">
+              <ul className="divide-y divide-border-light">
                 {construction.slice(0, 10).map((e) => (
                   <li key={e.id} className="py-2 text-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-slate-200">{e.road_name}</div>
-                        <div className="text-xs text-slate-500">{e.description}</div>
+                        <div className="truncate text-text">{e.road_name}</div>
+                        <div className="text-xs text-text-muted">{e.description}</div>
                       </div>
-                      <div className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200">
+                      <IconBadge tone="neutral" className="shrink-0">
                         {e.keyword ?? '—'}
-                      </div>
+                      </IconBadge>
                     </div>
                   </li>
                 ))}
               </ul>
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
 
       <div className="mt-6">
-        <Panel title="Live map & route check">
+        <Card floating>
+          <CardHeader>
+            <CardTitle>Live map & route check</CardTitle>
+          </CardHeader>
           <div className="space-y-4">
             <RouteCheckPanel
               onResult={(routes, recommendedIndex) => {
@@ -290,7 +329,7 @@ function Dashboard() {
               recommendedIndex={recommendedRouteIndex}
             />
           </div>
-        </Panel>
+        </Card>
       </div>
     </main>
   )
@@ -298,22 +337,11 @@ function Dashboard() {
 
 export default App
 
-function Panel(props: Readonly<{ title: string; children: React.ReactNode }>) {
-  return (
-    <section className="rounded-xl border border-slate-800 bg-slate-950/40">
-      <div className="border-b border-slate-800 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-200">{props.title}</h2>
-      </div>
-      <div className="px-4 py-3">{props.children}</div>
-    </section>
-  )
-}
-
 function Stat(props: Readonly<{ title: string; value: number }>) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-4">
-      <div className="text-xs text-slate-400">{props.title}</div>
-      <div className="mt-1 text-2xl font-semibold text-slate-100">{props.value}</div>
-    </div>
+    <Card className="px-4 py-4" decorated={false} padded={false}>
+      <div className="text-xs uppercase tracking-wide text-text-muted">{props.title}</div>
+      <div className="text-emboss mt-1 font-mono text-2xl font-semibold text-text">{props.value}</div>
+    </Card>
   )
 }

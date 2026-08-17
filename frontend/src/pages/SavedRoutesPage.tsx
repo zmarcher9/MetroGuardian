@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { deleteSavedRoute, listSavedRoutes, type SavedRoute } from '../lib/api'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
 
 export default function SavedRoutesPage() {
   const [routes, setRoutes] = useState<SavedRoute[]>([])
@@ -34,36 +37,36 @@ export default function SavedRoutesPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-4 text-lg font-semibold text-slate-100">Saved routes</h1>
+      <h1 className="text-emboss mb-4 text-lg font-bold text-text">Saved routes</h1>
 
       {error ? (
-        <div className="mb-4 rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</div>
+        <div className="mb-4 rounded-lg border border-accent bg-[var(--accent-tint)] p-3 text-sm text-text">{error}</div>
       ) : null}
 
       {loading ? (
-        <div className="text-sm text-slate-400">Loading…</div>
+        <div className="text-sm text-text-muted">Loading…</div>
       ) : routes.length === 0 ? (
-        <div className="text-sm text-slate-400">No saved routes yet.</div>
+        <div className="text-sm text-text-muted">No saved routes yet.</div>
       ) : (
-        <ul className="divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-950/40">
-          {routes.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-slate-200">{r.name}</div>
-                <div className="text-xs text-slate-500">
-                  {r.origin.lat.toFixed(4)}, {r.origin.lng.toFixed(4)} &rarr; {r.dest.lat.toFixed(4)},{' '}
-                  {r.dest.lng.toFixed(4)}
+        <Card decorated={false} padded={false}>
+          <ul className="divide-y divide-border-light">
+            {routes.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-text">{r.name}</div>
+                  <div className="font-mono text-xs text-text-muted">
+                    {r.origin.lat.toFixed(4)}, {r.origin.lng.toFixed(4)} &rarr; {r.dest.lat.toFixed(4)},{' '}
+                    {r.dest.lng.toFixed(4)}
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => void handleDelete(r.id)}
-                className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs hover:bg-slate-800"
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+                <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void handleDelete(r.id)}>
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Delete
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   )

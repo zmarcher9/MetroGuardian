@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Dark-chassis Industrial Skeuomorphism tokens. Single source of truth -
+     tailwind.config.js references these via var(), never restates them. */
+  --background: #17181a;
+  --foreground: #1f2124;
+  --muted: #101112;
+  --text: #e8e6e3;
+  --text-muted: #9199a8;
+  --accent: #ff4757;
+  --accent-foreground: #ffffff; /* only for text sized/weighted to clear WCAG AA-large (>=18.7px bold) */
+  --accent-foreground-small: #1a1409; /* passes AA at any size (6.3:1) - use for anything smaller */
+  --border: rgba(0, 0, 0, 0.7); /* shadow-dark half */
+  --border-light: rgba(255, 255, 255, 0.1); /* shadow-light half */
+  --border-dark: #000000;
+  --grid-line: #4a5568;
+
+  /* Pre-mixed tinted/translucent variants. Tailwind's `/NN` opacity-modifier
+     syntax silently produces NO CSS when the base color is a var() custom
+     property (can't decompose it into RGB channels pre-v4) - confirmed the
+     hard way when a Led dot rendered fully invisible. Every translucent use
+     of a token gets its own explicit rgba() here instead of a `/NN` suffix
+     anywhere in component code. */
+  --accent-tint: rgba(255, 71, 87, 0.1); /* error banner fills */
+  --foreground-translucent: rgba(31, 33, 36, 0.6); /* nav header backdrop, ghost-button hover */
+  --text-muted-dim: rgba(145, 153, 168, 0.4); /* offline LED dot */
+  --success-rgb: 52, 211, 153; /* emerald-400 channels, shared by Led's online glow and the recommended-route card glow */
+}
+
 html,
 body,
 #root {
@@ -9,5 +37,91 @@ body,
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  background-color: var(--background);
+  color: var(--text);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* Subtle grain over the chassis background - opacity/blend-mode based, not
+   tied to a specific base color, so it survived the light->dark adaptation
+   unchanged in mechanism. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* Opt-in scanline texture */
+.texture-scanlines {
+  position: relative;
+}
+.texture-scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Opt-in grid texture - grid-line color moved to a lighter grey than the
+   source spec's #636e72 to stay visible at low opacity on the dark chassis. */
+.texture-grid {
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+  opacity: 0.06;
+}
+
+/* Heading emboss: a light highlight, not a dark shadow - a dark shadow under
+   light text on a near-black page composites to near-invisible (<1.2:1). */
+.text-emboss {
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.08));
+}
+
+/* Leaflet's own popup chrome, overridden to match the panel token instead of
+   Leaflet's default white box (which would otherwise float inside an
+   all-black app). Zoom control / attribution chrome intentionally left
+   default - see the design-system plan's named limitation. */
+.leaflet-popup-content-wrapper {
+  background: var(--foreground);
+  color: var(--text);
+  border-radius: 0.75rem;
+  box-shadow: 12px 12px 24px var(--border), -12px -12px 24px var(--border-light);
+}
+.leaflet-popup-tip {
+  background: var(--foreground);
+}
+.leaflet-popup-content {
+  margin: 0.75rem 1rem;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+.leaflet-popup-close-button {
+  color: var(--text-muted) !important;
+}
+
+/* Decorative corner-screw / vent-slot chassis details hidden below this
+   breakpoint per the design system's responsive scope. */
+@media (max-width: 640px) {
+  .chassis-decoration {
+    display: none;
+  }
 }

@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { LogIn } from 'lucide-react'
 import { useAuth } from '../lib/useAuth'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -26,42 +30,37 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-4 px-4 py-16">
-      <h1 className="text-lg font-semibold text-slate-100">Log in</h1>
-      <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Email
-          <input
+      <Card floating>
+        <h1 className="text-emboss mb-4 text-lg font-bold text-text">Log in</h1>
+        <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
+          <Input
+            id="login-email"
+            label="Email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
           />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-slate-400">
-          Password
-          <input
+          <Input
+            id="login-password"
+            label="Password"
             type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
           />
-        </label>
-        {error ? (
-          <div className="rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">{error}</div>
-        ) : null}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-50"
-        >
-          {loading ? 'Logging in…' : 'Log in'}
-        </button>
-      </form>
-      <div className="text-sm text-slate-400">
+          {error ? (
+            <div className="rounded-lg border border-accent bg-[var(--accent-tint)] p-3 text-sm text-text">{error}</div>
+          ) : null}
+          <Button type="submit" disabled={loading}>
+            <LogIn className="h-4 w-4" aria-hidden="true" />
+            {loading ? 'Logging in…' : 'Log in'}
+          </Button>
+        </form>
+      </Card>
+      <div className="text-center text-sm text-text-muted">
         No account?{' '}
-        <Link to="/signup" className="text-slate-200 underline">
+        <Link to="/signup" className="font-medium text-text underline">
           Sign up
         </Link>
       </div>

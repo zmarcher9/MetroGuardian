@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -122,6 +123,35 @@ describe('App', () => {
     })
 
     await waitFor(() => expect(screen.getByText('New live alert')).toBeInTheDocument())
+  })
+
+  it('reflects the real SSE connection status via the Led, not a static indicator', async () => {
+    renderApp()
+
+    // Asserted synchronously, before MockEventSource's queued 'open' event
+    // has a chance to fire: proves the Led starts at 'connecting' rather
+    // than being hardcoded to show "Live" from the moment it mounts.
+    expect(screen.getByRole('status', { name: 'Connecting…' })).toBeInTheDocument()
+
+    await waitFor(() => expect(screen.getByText('Speed dropped on I-90')).toBeInTheDocument())
+
+    // MockEventSource auto-fires 'open' on construction (see tests/setup.ts).
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Live' })).toBeInTheDocument())
+
+    const source = apiMocks.alertsEventSource.mock.results[0]!.value as MockEventSource
+    source.dispatch('error')
+
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Error' })).toBeInTheDocument())
+  })
+
+  it('shows Offline once the Live toggle is switched off', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Live' })).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /^live$/i }))
+
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Offline' })).toBeInTheDocument())
   })
 
   it('shows login/signup links when logged out', async () => {

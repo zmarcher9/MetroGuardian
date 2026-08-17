@@ -1,6 +1,11 @@
 import { useState } from 'react'
+import { AlertTriangle, MapPin } from 'lucide-react'
 import { checkRoute, createSavedRoute, type LatLng, type RouteOption } from '../lib/api'
 import { useAuth } from '../lib/useAuth'
+import { Button } from './ui/Button'
+import { Card } from './ui/Card'
+import { Input } from './ui/Input'
+import { Led } from './ui/Led'
 
 type Preset = { label: string; origin: LatLng; destination: LatLng }
 
@@ -90,110 +95,109 @@ export default function RouteCheckPanel(props: Readonly<{
       <div>
         <div className="mb-2 flex flex-wrap gap-2">
           {PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => applyPreset(preset)}
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-            >
+            <Button key={preset.label} variant="secondary" size="sm" onClick={() => applyPreset(preset)}>
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
               {preset.label}
-            </button>
+            </Button>
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <label className="flex flex-col gap-1 text-slate-400">
-            Origin lat, lng
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-text-muted">
+              Origin lat, lng
+            </span>
             <div className="flex gap-1">
-              <input
+              <Input
                 type="number"
+                aria-label="Origin latitude"
                 value={origin.lat}
                 onChange={(e) => setOrigin({ ...origin, lat: Number(e.target.value) })}
-                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
               />
-              <input
+              <Input
                 type="number"
+                aria-label="Origin longitude"
                 value={origin.lng}
                 onChange={(e) => setOrigin({ ...origin, lng: Number(e.target.value) })}
-                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
               />
             </div>
-          </label>
-          <label className="flex flex-col gap-1 text-slate-400">
-            Destination lat, lng
+          </div>
+          <div>
+            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-text-muted">
+              Destination lat, lng
+            </span>
             <div className="flex gap-1">
-              <input
+              <Input
                 type="number"
+                aria-label="Destination latitude"
                 value={destination.lat}
                 onChange={(e) => setDestination({ ...destination, lat: Number(e.target.value) })}
-                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
               />
-              <input
+              <Input
                 type="number"
+                aria-label="Destination longitude"
                 value={destination.lng}
                 onChange={(e) => setDestination({ ...destination, lng: Number(e.target.value) })}
-                className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100"
               />
             </div>
-          </label>
+          </div>
         </div>
 
-        <button
-          onClick={() => void runCheck()}
-          disabled={loading}
-          className="mt-3 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-50"
-        >
+        <Button className="mt-3" onClick={() => void runCheck()} disabled={loading}>
           {loading ? 'Checking…' : 'Check route'}
-        </button>
+        </Button>
 
         {error ? (
-          <div className="mt-3 rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">
-            {error}
-          </div>
+          <div className="mt-3 rounded-lg border border-accent bg-[var(--accent-tint)] p-3 text-sm text-text">{error}</div>
         ) : null}
       </div>
 
       <div className="text-sm">
         {routes.length === 0 ? (
-          <div className="text-slate-400">Pick a preset or enter coordinates, then check a route.</div>
+          <div className="text-text-muted">Pick a preset or enter coordinates, then check a route.</div>
         ) : (
           <div className="space-y-3">
             {routes.map((route, i) => (
-              <div
+              <Card
                 key={i}
-                className={`rounded-md border p-3 ${
-                  i === recommendedIndex ? 'border-emerald-700 bg-emerald-950/30' : 'border-slate-800 bg-slate-950/40'
-                }`}
+                decorated={false}
+                className={i === recommendedIndex ? 'shadow-[0_0_10px_2px_rgba(var(--success-rgb),0.35)]' : ''}
               >
                 <div className="flex items-center justify-between">
-                  <div className="font-medium text-slate-200">
-                    {i === recommendedIndex ? 'Recommended route' : `Alternate ${i}`}
-                  </div>
-                  <div className="text-xs text-slate-400">
+                  {i === recommendedIndex ? (
+                    <Led status="online" label="Recommended route" />
+                  ) : (
+                    <div className="font-medium text-text">Alternate {i}</div>
+                  )}
+                  <div className="font-mono text-xs text-text-muted">
                     {formatDistance(route.distance_meters)} &middot; {formatDuration(route.duration_seconds)}
                   </div>
                 </div>
                 {route.impacted_alerts.length === 0 ? (
-                  <div className="mt-1 text-xs text-slate-500">No active incidents on this route.</div>
+                  <div className="mt-1 text-xs text-text-muted">No active incidents on this route.</div>
                 ) : (
-                  <ul className="mt-1 space-y-1 text-xs text-amber-300">
+                  <ul className="mt-2 space-y-1 text-xs text-amber-300">
                     {route.impacted_alerts.map((a) => (
-                      <li key={a.id}>
-                        {a.message} ({Math.round(a.distance_meters)}m away)
+                      <li key={a.id} className="flex items-start gap-1.5">
+                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                        <span>
+                          {a.message} ({Math.round(a.distance_meters)}m away)
+                        </span>
                       </li>
                     ))}
                   </ul>
                 )}
-              </div>
+              </Card>
             ))}
             {recommended && routes.length > 1 ? (
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-text-muted">
                 Recommended route has the lowest total incident severity of the {routes.length} options found.
               </div>
             ) : null}
 
             {user ? (
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   type="text"
                   placeholder="Route name"
                   value={saveName}
@@ -201,18 +205,19 @@ export default function RouteCheckPanel(props: Readonly<{
                     setSaveName(e.target.value)
                     setSaved(false)
                   }}
-                  className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                 />
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0"
                   onClick={() => void handleSave()}
                   disabled={saving || saved}
-                  className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-50"
                 >
                   {saving ? 'Saving…' : saved ? 'Saved' : 'Save this route'}
-                </button>
+                </Button>
               </div>
             ) : null}
-            {saveError ? <div className="text-xs text-rose-300">{saveError}</div> : null}
+            {saveError ? <div className="text-xs text-accent">{saveError}</div> : null}
           </div>
         )}
       </div>

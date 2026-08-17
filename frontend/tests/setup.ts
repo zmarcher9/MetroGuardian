@@ -21,6 +21,10 @@ class MockEventSource {
   constructor(url: string) {
     this.url = url
     MockEventSource.instances.push(this)
+    // Real EventSource fires 'open' asynchronously once the connection is
+    // established; queueMicrotask mirrors that so listeners attached
+    // synchronously right after construction still catch it.
+    queueMicrotask(() => this.dispatch('open'))
   }
 
   addEventListener(type: string, listener: (event: MessageEvent) => void) {
@@ -32,8 +36,8 @@ class MockEventSource {
     this.listeners.get(type)?.delete(listener)
   }
 
-  dispatch(type: string, data: unknown) {
-    const event = { data: JSON.stringify(data) } as MessageEvent
+  dispatch(type: string, data?: unknown) {
+    const event = (data === undefined ? {} : { data: JSON.stringify(data) }) as MessageEvent
     this.listeners.get(type)?.forEach((listener) => listener(event))
   }
 

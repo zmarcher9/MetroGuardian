@@ -33,7 +33,7 @@ export default function MapView(props: Readonly<{
   const { trafficEvents, constructionEvents, routes = [], recommendedIndex = 0 } = props
 
   return (
-    <div className="h-[420px] w-full overflow-hidden rounded-lg border border-slate-800">
+    <div className="h-[420px] w-full overflow-hidden rounded-lg shadow-recessed">
       <MapContainer center={DEFAULT_CENTER} zoom={13} className="h-full w-full" scrollWheelZoom={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -48,9 +48,9 @@ export default function MapView(props: Readonly<{
             pathOptions={{ color: speedColor(e.speed_kph), fillColor: speedColor(e.speed_kph), fillOpacity: 0.85 }}
           >
             <Popup>
-              <div className="text-sm">
+              <div className="font-sans text-sm text-text">
                 <div className="font-semibold">{e.road_name}</div>
-                <div>{e.speed_kph.toFixed(1)} kph</div>
+                <div className="font-mono text-text-muted">{e.speed_kph.toFixed(1)} kph</div>
               </div>
             </Popup>
           </CircleMarker>
@@ -64,9 +64,9 @@ export default function MapView(props: Readonly<{
             pathOptions={{ color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.85 }}
           >
             <Popup>
-              <div className="text-sm">
+              <div className="font-sans text-sm text-text">
                 <div className="font-semibold">{e.road_name}</div>
-                <div>{e.description}</div>
+                <div className="text-text-muted">{e.description}</div>
               </div>
             </Popup>
           </CircleMarker>
