@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   API_BASE_URL,
   checkRoute,
+  deleteSavedRoute,
+  getMe,
   ingestConstruction,
   ingestTraffic,
   listAlerts,
   listConstructionEvents,
   listTrafficEvents,
+  login,
 } from '../src/lib/api'
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
@@ -85,5 +88,107 @@ describe('lib/api', () => {
     )
 
     await expect(listAlerts()).rejects.toThrow('HTTP 404 Not Found — Alert not found')
+  })
+})
+
+function unauthorized() {
+  return new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
+}
+
+const sampleUser = {
+  id: 'u1',
+  email: 'driver@example.com',
+  is_admin: false,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+describe('lib/api credentials, CSRF, and refresh interceptor', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockReset()
+    document.cookie = 'mg_csrf=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sends credentials: include and the CSRF header (read from the cookie) on mutating requests', async () => {
+    document.cookie = 'mg_csrf=test-csrf-token'
+    fetchMock.mockResolvedValueOnce(jsonResponse(sampleUser))
+
+    await login('driver@example.com', 'password1')
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init).toMatchObject({ credentials: 'include' })
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('test-csrf-token')
+  })
+
+  it('omits the CSRF header on GET requests', async () => {
+    document.cookie = 'mg_csrf=test-csrf-token'
+    fetchMock.mockResolvedValueOnce(jsonResponse(sampleUser))
+
+    await getMe()
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBeUndefined()
+  })
+
+  it('retries once after a silent refresh on a 401', async () => {
+    fetchMock
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse(sampleUser))
+
+    const result = await getMe()
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1][0]).toBe(`${API_BASE_URL}/auth/refresh`)
+    expect(result).toEqual(sampleUser)
+  })
+
+  it('retries a mutating request with a freshly-read CSRF header after a refresh', async () => {
+    document.cookie = 'mg_csrf=stale-token'
+    fetchMock
+      .mockResolvedValueOnce(unauthorized())
+      .mockImplementationOnce(async () => {
+        // The refresh rotates the CSRF cookie, mirroring the real backend.
+        document.cookie = 'mg_csrf=fresh-token'
+        return jsonResponse({})
+      })
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await deleteSavedRoute('r1')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    const [, retryInit] = fetchMock.mock.calls[2]
+    expect((retryInit.headers as Record<string, string>)['X-CSRF-Token']).toBe('fresh-token')
+  })
+
+  it('surfaces the original 401 when refresh also fails, without looping', async () => {
+    fetchMock.mockResolvedValueOnce(unauthorized()).mockResolvedValueOnce(unauthorized())
+
+    await expect(getMe()).rejects.toThrow('HTTP 401 Unauthorized')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('deduplicates concurrent refreshes triggered by simultaneous 401s', async () => {
+    fetchMock
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(unauthorized())
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse(sampleUser))
+      .mockResolvedValueOnce(jsonResponse(sampleUser))
+
+    const [a, b] = await Promise.all([getMe(), getMe()])
+
+    expect(a).toEqual(sampleUser)
+    expect(b).toEqual(sampleUser)
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    const refreshCalls = fetchMock.mock.calls.filter(([url]) => url === `${API_BASE_URL}/auth/refresh`)
+    expect(refreshCalls).toHaveLength(1)
   })
 })

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link, Route, Routes } from 'react-router-dom'
 import {
   alertsEventSource,
   ingestConstruction,
@@ -11,8 +12,14 @@ import {
   type RouteOption,
   type TrafficEvent,
 } from './lib/api'
+import { AuthProvider } from './lib/AuthContext'
+import { useAuth } from './lib/useAuth'
+import ProtectedRoute from './components/ProtectedRoute'
 import MapView from './components/MapView'
 import RouteCheckPanel from './components/RouteCheckPanel'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
+import SavedRoutesPage from './pages/SavedRoutesPage'
 
 function alertTypeClass(type: string) {
   if (type === 'traffic') return 'text-amber-300'
@@ -21,6 +28,78 @@ function alertTypeClass(type: string) {
 }
 
 function App() {
+  return (
+    <AuthProvider>
+      <div className="min-h-full">
+        <NavHeader />
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route
+            path="/saved-routes"
+            element={
+              <ProtectedRoute>
+                <SavedRoutesPage />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </div>
+    </AuthProvider>
+  )
+}
+
+function NavHeader() {
+  const { user, logout } = useAuth()
+
+  return (
+    <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+        <div className="flex items-center gap-6">
+          <div>
+            <div className="text-sm text-slate-400">MetroGuardian</div>
+            <div className="text-lg font-semibold tracking-tight">Alert Dashboard</div>
+          </div>
+          <nav className="flex items-center gap-4 text-sm text-slate-300">
+            <Link to="/" className="hover:text-slate-100">
+              Dashboard
+            </Link>
+            {user ? (
+              <Link to="/saved-routes" className="hover:text-slate-100">
+                Saved routes
+              </Link>
+            ) : null}
+          </nav>
+        </div>
+        <div className="flex items-center gap-3 text-sm text-slate-300">
+          {user ? (
+            <>
+              <span className="text-slate-400">{user.email}</span>
+              <button
+                onClick={() => void logout()}
+                className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800">
+                Log in
+              </Link>
+              <Link to="/signup" className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 hover:bg-slate-800">
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function Dashboard() {
   const [alerts, setAlerts] = useState<PipelineAlert[]>([])
   const [traffic, setTraffic] = useState<TrafficEvent[]>([])
   const [construction, setConstruction] = useState<ConstructionEvent[]>([])
@@ -102,128 +181,118 @@ function App() {
   }, [alerts, loading])
 
   return (
-    <div className="min-h-full">
-      <header className="border-b border-slate-800 bg-slate-950/50 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <div>
-            <div className="text-sm text-slate-400">MetroGuardian</div>
-            <div className="text-lg font-semibold tracking-tight">Alert Dashboard</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => void refresh()}
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-            >
-              Refresh
-            </button>
-            <button
-              onClick={() => void ingestTraffic().then(refresh)}
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-            >
-              Ingest traffic
-            </button>
-            <button
-              onClick={() => void ingestConstruction().then(refresh)}
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
-            >
-              Ingest construction
-            </button>
-            <label className="ml-2 flex items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={live}
-                onChange={(e) => setLive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-700 bg-slate-900"
-              />
-              <span>Live</span>
-            </label>
-          </div>
+    <main className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mb-6 flex items-center gap-2">
+        <button
+          onClick={() => void refresh()}
+          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
+        >
+          Refresh
+        </button>
+        <button
+          onClick={() => void ingestTraffic().then(refresh)}
+          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
+        >
+          Ingest traffic
+        </button>
+        <button
+          onClick={() => void ingestConstruction().then(refresh)}
+          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800"
+        >
+          Ingest construction
+        </button>
+        <label className="ml-2 flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={live}
+            onChange={(e) => setLive(e.target.checked)}
+            className="h-4 w-4 rounded border-slate-700 bg-slate-900"
+          />
+          <span>Live</span>
+        </label>
+      </div>
+
+      {error ? (
+        <div className="mb-4 rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">
+          {error}
         </div>
-      </header>
+      ) : null}
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        {error ? (
-          <div className="mb-4 rounded-md border border-rose-900/50 bg-rose-950/40 p-3 text-sm text-rose-200">
-            {error}
-          </div>
-        ) : null}
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Stat title="Alerts" value={counts.alerts} />
+        <Stat title="Traffic events" value={counts.traffic} />
+        <Stat title="Construction events" value={counts.construction} />
+      </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Stat title="Alerts" value={counts.alerts} />
-          <Stat title="Traffic events" value={counts.traffic} />
-          <Stat title="Construction events" value={counts.construction} />
-        </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Panel title="Latest alerts">
+          {alertsBody}
+        </Panel>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Panel title="Latest alerts">
-            {alertsBody}
+        <div className="grid grid-cols-1 gap-6">
+          <Panel title="Traffic events">
+            {loading ? (
+              <div className="text-sm text-slate-400">Loading…</div>
+            ) : (
+              <ul className="divide-y divide-slate-800">
+                {traffic.slice(0, 10).map((e) => (
+                  <li key={e.id} className="py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-200">{e.road_name}</div>
+                        <div className="text-xs text-slate-500">{new Date(e.observed_at).toLocaleTimeString()}</div>
+                      </div>
+                      <div className="shrink-0 font-mono text-slate-200">{e.speed_kph.toFixed(1)} kph</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
 
-          <div className="grid grid-cols-1 gap-6">
-            <Panel title="Traffic events">
-              {loading ? (
-                <div className="text-sm text-slate-400">Loading…</div>
-              ) : (
-                <ul className="divide-y divide-slate-800">
-                  {traffic.slice(0, 10).map((e) => (
-                    <li key={e.id} className="py-2 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-200">{e.road_name}</div>
-                          <div className="text-xs text-slate-500">{new Date(e.observed_at).toLocaleTimeString()}</div>
-                        </div>
-                        <div className="shrink-0 font-mono text-slate-200">{e.speed_kph.toFixed(1)} kph</div>
+          <Panel title="Construction events">
+            {loading ? (
+              <div className="text-sm text-slate-400">Loading…</div>
+            ) : (
+              <ul className="divide-y divide-slate-800">
+                {construction.slice(0, 10).map((e) => (
+                  <li key={e.id} className="py-2 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-slate-200">{e.road_name}</div>
+                        <div className="text-xs text-slate-500">{e.description}</div>
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-
-            <Panel title="Construction events">
-              {loading ? (
-                <div className="text-sm text-slate-400">Loading…</div>
-              ) : (
-                <ul className="divide-y divide-slate-800">
-                  {construction.slice(0, 10).map((e) => (
-                    <li key={e.id} className="py-2 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-200">{e.road_name}</div>
-                          <div className="text-xs text-slate-500">{e.description}</div>
-                        </div>
-                        <div className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200">
-                          {e.keyword ?? '—'}
-                        </div>
+                      <div className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200">
+                        {e.keyword ?? '—'}
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Panel>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <Panel title="Live map & route check">
-            <div className="space-y-4">
-              <RouteCheckPanel
-                onResult={(routes, recommendedIndex) => {
-                  setRouteOptions(routes)
-                  setRecommendedRouteIndex(recommendedIndex)
-                }}
-              />
-              <MapView
-                trafficEvents={traffic}
-                constructionEvents={construction}
-                routes={routeOptions}
-                recommendedIndex={recommendedRouteIndex}
-              />
-            </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Panel>
         </div>
-      </main>
-    </div>
+      </div>
+
+      <div className="mt-6">
+        <Panel title="Live map & route check">
+          <div className="space-y-4">
+            <RouteCheckPanel
+              onResult={(routes, recommendedIndex) => {
+                setRouteOptions(routes)
+                setRecommendedRouteIndex(recommendedIndex)
+              }}
+            />
+            <MapView
+              trafficEvents={traffic}
+              constructionEvents={construction}
+              routes={routeOptions}
+              recommendedIndex={recommendedRouteIndex}
+            />
+          </div>
+        </Panel>
+      </div>
+    </main>
   )
 }
 

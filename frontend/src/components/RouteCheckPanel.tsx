@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { checkRoute, type LatLng, type RouteOption } from '../lib/api'
+import { checkRoute, createSavedRoute, type LatLng, type RouteOption } from '../lib/api'
+import { useAuth } from '../lib/useAuth'
 
 type Preset = { label: string; origin: LatLng; destination: LatLng }
 
@@ -28,12 +29,19 @@ function formatDistance(meters: number): string {
 export default function RouteCheckPanel(props: Readonly<{
   onResult: (routes: RouteOption[], recommendedIndex: number) => void
 }>) {
+  const { user } = useAuth()
   const [origin, setOrigin] = useState<LatLng>(PRESETS[0].origin)
   const [destination, setDestination] = useState<LatLng>(PRESETS[0].destination)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [routes, setRoutes] = useState<RouteOption[]>([])
   const [recommendedIndex, setRecommendedIndex] = useState(0)
+  const [checkedOrigin, setCheckedOrigin] = useState<LatLng | null>(null)
+  const [checkedDestination, setCheckedDestination] = useState<LatLng | null>(null)
+  const [saveName, setSaveName] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   async function runCheck(o: LatLng = origin, d: LatLng = destination) {
     setLoading(true)
@@ -42,6 +50,9 @@ export default function RouteCheckPanel(props: Readonly<{
       const res = await checkRoute(o, d)
       setRoutes(res.routes)
       setRecommendedIndex(res.recommended_index)
+      setCheckedOrigin(o)
+      setCheckedDestination(d)
+      setSaved(false)
       props.onResult(res.routes, res.recommended_index)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -49,6 +60,20 @@ export default function RouteCheckPanel(props: Readonly<{
       props.onResult([], 0)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!checkedOrigin || !checkedDestination) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await createSavedRoute(saveName.trim() || 'Untitled route', checkedOrigin, checkedDestination)
+      setSaved(true)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -165,6 +190,29 @@ export default function RouteCheckPanel(props: Readonly<{
                 Recommended route has the lowest total incident severity of the {routes.length} options found.
               </div>
             ) : null}
+
+            {user ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Route name"
+                  value={saveName}
+                  onChange={(e) => {
+                    setSaveName(e.target.value)
+                    setSaved(false)
+                  }}
+                  className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
+                />
+                <button
+                  onClick={() => void handleSave()}
+                  disabled={saving || saved}
+                  className="shrink-0 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : saved ? 'Saved' : 'Save this route'}
+                </button>
+              </div>
+            ) : null}
+            {saveError ? <div className="text-xs text-rose-300">{saveError}</div> : null}
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
 import type { ConstructionEvent, PipelineAlert, TrafficEvent } from '../src/lib/api'
@@ -13,10 +14,26 @@ const { apiMocks } = vi.hoisted(() => ({
     ingestTraffic: vi.fn(),
     ingestConstruction: vi.fn(),
     alertsEventSource: vi.fn(),
+    getMe: vi.fn(),
+    login: vi.fn(),
+    signup: vi.fn(),
+    logout: vi.fn(),
+    checkRoute: vi.fn(),
+    createSavedRoute: vi.fn(),
+    listSavedRoutes: vi.fn(),
+    deleteSavedRoute: vi.fn(),
   },
 }))
 
 vi.mock('../src/lib/api', () => apiMocks)
+
+function renderApp() {
+  return render(
+    <MemoryRouter>
+      <App />
+    </MemoryRouter>,
+  )
+}
 
 vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -60,6 +77,7 @@ describe('App', () => {
     apiMocks.listTrafficEvents.mockResolvedValue(trafficEvents)
     apiMocks.listConstructionEvents.mockResolvedValue(constructionEvents)
     apiMocks.alertsEventSource.mockImplementation(() => new MockEventSource('/api/v1/alerts/stream'))
+    apiMocks.getMe.mockRejectedValue(new Error('HTTP 401 Unauthorized'))
   })
 
   afterEach(() => {
@@ -67,7 +85,7 @@ describe('App', () => {
   })
 
   it('loads and displays alerts, traffic, and construction counts', async () => {
-    render(<App />)
+    renderApp()
 
     expect(screen.getAllByText('Loading…').length).toBeGreaterThan(0)
 
@@ -82,13 +100,13 @@ describe('App', () => {
   it('shows an error banner when loading fails', async () => {
     apiMocks.listAlerts.mockRejectedValueOnce(new Error('HTTP 500 Internal Server Error'))
 
-    render(<App />)
+    renderApp()
 
     await waitFor(() => expect(screen.getByText('HTTP 500 Internal Server Error')).toBeInTheDocument())
   })
 
   it('prepends alerts pushed over the live SSE stream', async () => {
-    render(<App />)
+    renderApp()
     await waitFor(() => expect(screen.getByText('Speed dropped on I-90')).toBeInTheDocument())
 
     const source = apiMocks.alertsEventSource.mock.results[0]!.value as MockEventSource
@@ -104,5 +122,27 @@ describe('App', () => {
     })
 
     await waitFor(() => expect(screen.getByText('New live alert')).toBeInTheDocument())
+  })
+
+  it('shows login/signup links when logged out', async () => {
+    renderApp()
+    await waitFor(() => expect(apiMocks.getMe).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByRole('link', { name: /log in/i })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: /sign up/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /saved routes/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the user email and a saved-routes link when logged in', async () => {
+    apiMocks.getMe.mockResolvedValue({
+      id: 'u1',
+      email: 'driver@example.com',
+      is_admin: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    renderApp()
+    await waitFor(() => expect(screen.getByText('driver@example.com')).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: /saved routes/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument()
   })
 })
