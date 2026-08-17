@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
-import type { ConstructionEvent, PipelineAlert, TrafficEvent } from '../src/lib/api'
+import type { ConstructionEvent, PipelineAlert, TrafficEvent, User } from '../src/lib/api'
 import { MockEventSource } from './setup'
 
 const { apiMocks } = vi.hoisted(() => ({
@@ -174,5 +174,54 @@ describe('App', () => {
     await waitFor(() => expect(screen.getByText('driver@example.com')).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /saved routes/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /log out/i })).toBeInTheDocument()
+  })
+
+  it('hides the admin-only ingest buttons for logged-out users', async () => {
+    renderApp()
+    await waitFor(() => expect(apiMocks.getMe).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByRole('link', { name: /log in/i })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /ingest traffic/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ingest construction/i })).not.toBeInTheDocument()
+  })
+
+  it('hides the admin-only ingest buttons for a logged-in non-admin user', async () => {
+    apiMocks.getMe.mockResolvedValue({
+      id: 'u2',
+      email: 'driver@example.com',
+      is_admin: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    renderApp()
+    await waitFor(() => expect(screen.getByText('driver@example.com')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /ingest traffic/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ingest construction/i })).not.toBeInTheDocument()
+  })
+
+  it('hides the admin-only ingest buttons when is_admin is missing from the user response', async () => {
+    apiMocks.getMe.mockResolvedValue({
+      id: 'u4',
+      email: 'driver@example.com',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as Omit<User, 'is_admin'> as User)
+    renderApp()
+    await waitFor(() => expect(screen.getByText('driver@example.com')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /ingest traffic/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ingest construction/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the admin-only ingest buttons for admin users', async () => {
+    apiMocks.getMe.mockResolvedValue({
+      id: 'u3',
+      email: 'admin@example.com',
+      is_admin: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    renderApp()
+    await waitFor(() => expect(screen.getByText('admin@example.com')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /ingest traffic/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ingest construction/i })).toBeInTheDocument()
   })
 })

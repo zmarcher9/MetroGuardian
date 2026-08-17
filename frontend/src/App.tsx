@@ -118,6 +118,7 @@ function NavHeader() {
 }
 
 function Dashboard() {
+  const { user } = useAuth()
   const [alerts, setAlerts] = useState<PipelineAlert[]>([])
   const [traffic, setTraffic] = useState<TrafficEvent[]>([])
   const [construction, setConstruction] = useState<ConstructionEvent[]>([])
@@ -217,14 +218,18 @@ function Dashboard() {
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           Refresh
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => void ingestTraffic().then(refresh)}>
-          <Database className="h-3.5 w-3.5" aria-hidden="true" />
-          Ingest traffic
-        </Button>
-        <Button variant="secondary" size="sm" onClick={() => void ingestConstruction().then(refresh)}>
-          <Construction className="h-3.5 w-3.5" aria-hidden="true" />
-          Ingest construction
-        </Button>
+        {user?.is_admin ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => void ingestTraffic().then(refresh)}>
+              <Database className="h-3.5 w-3.5" aria-hidden="true" />
+              Ingest traffic
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => void ingestConstruction().then(refresh)}>
+              <Construction className="h-3.5 w-3.5" aria-hidden="true" />
+              Ingest construction
+            </Button>
+          </>
+        ) : null}
         <Button
           variant={live ? 'primary' : 'secondary'}
           size="sm"
